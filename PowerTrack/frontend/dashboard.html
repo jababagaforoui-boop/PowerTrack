@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard | PowerTrack</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-900 transition-colors duration-500">
+
+<!-- Header with Appliances Button & Dark Mode Toggle -->
+<header class="bg-gradient-to-r from-green-400 to-blue-500 dark:from-gray-800 dark:to-gray-900 text-white p-6 shadow-md flex justify-between items-center">
+    <div>
+        <h1 class="text-3xl font-bold">PowerTrack Dashboard</h1>
+        <p class="text-gray-100 mt-1">Monitor your energy consumption in real-time</p>
+    </div>
+    <div class="flex gap-4">
+        <!-- Appliances Button -->
+        <a href="appliances.html" 
+           class="bg-white text-gray-800 dark:bg-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg font-semibold shadow hover:bg-gray-200 dark:hover:bg-gray-600 transition flex items-center gap-1">
+            <img src="https://img.icons8.com/color/24/000000/electrical.png" class="w-5 h-5"/>
+            My Appliances
+        </a>
+        <!-- Dark Mode Toggle -->
+        <button id="darkModeToggle" 
+            class="bg-white text-gray-800 dark:bg-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg font-semibold shadow hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+            Dark Mode
+        </button>
+    </div>
+</header>
+
+<!-- Filter Buttons -->
+<div class="flex justify-center gap-4 mt-6">
+    <button id="weekBtn" class="bg-blue-500 dark:bg-blue-700 text-white px-4 py-2 rounded-lg hover:bg-blue-600 dark:hover:bg-blue-800 transition">Weekly</button>
+    <button id="monthBtn" class="bg-green-500 dark:bg-green-700 text-white px-4 py-2 rounded-lg hover:bg-green-600 dark:hover:bg-green-800 transition">Monthly</button>
+</div>
+
+<!-- Main Content -->
+<main class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+
+    <!-- Total Energy Card -->
+    <div class="bg-white dark:bg-gray-800 shadow-lg rounded-xl p-6 flex flex-col justify-between relative">
+        <div class="flex items-center gap-3">
+            <img src="https://img.icons8.com/color/48/000000/lightning-bolt.png" alt="Energy" class="w-10 h-10">
+            <h2 class="text-gray-500 dark:text-gray-300 font-semibold">Total Energy Consumed</h2>
+        </div>
+        <p id="totalEnergy" class="text-2xl font-bold text-green-500 mt-4">0 kWh</p>
+    </div>
+
+    <!-- High Usage Appliances Card -->
+    <div id="highUsageCard" class="bg-white dark:bg-gray-800 shadow-lg rounded-xl p-6 flex flex-col transition-transform duration-500">
+        <div class="flex items-center gap-3">
+            <img src="https://img.icons8.com/emoji/48/000000/fire.png" alt="Alert" class="w-10 h-10">
+            <h2 class="text-gray-500 dark:text-gray-300 font-semibold mb-2">High Usage Appliances</h2>
+        </div>
+        <ul id="highUsageList" class="list-disc list-inside text-red-500 flex-1 overflow-auto max-h-48">
+            <!-- dynamically filled -->
+        </ul>
+    </div>
+
+    <!-- Chart Card -->
+    <div class="bg-white dark:bg-gray-800 shadow-lg rounded-xl p-6 col-span-1 md:col-span-3">
+        <h2 class="text-gray-500 dark:text-gray-300 font-semibold mb-4">Energy Consumption by Appliance</h2>
+        <canvas id="energyChart" class="w-full h-64"></canvas>
+    </div>
+
+</main>
+
+<footer class="bg-white dark:bg-gray-800 p-4 mt-6 shadow-inner text-center text-gray-500 dark:text-gray-300">
+    &copy; 2026 PowerTrack. All rights reserved.
+</footer>
+
+<script>
+// Dark Mode
+let darkMode = false;
+document.getElementById('darkModeToggle').onclick = () => {
+    darkMode = !darkMode;
+    if(darkMode){
+        document.documentElement.classList.add('dark');
+    } else {
+        document.documentElement.classList.remove('dark');
+    }
+};
+
+// Filter buttons
+let period = 'weekly';
+document.getElementById('weekBtn').onclick = () => { period='weekly'; loadData(); };
+document.getElementById('monthBtn').onclick = () => { period='monthly'; loadData(); };
+
+// Appliance icons mapping
+const applianceIcons = {
+    'Fridge':'https://img.icons8.com/color/48/000000/refrigerator.png',
+    'AC':'https://img.icons8.com/color/48/000000/air-conditioner.png',
+    'TV':'https://img.icons8.com/color/48/000000/retro-tv.png',
+    'Light':'https://img.icons8.com/color/48/000000/light-on.png',
+    'Oven':'https://img.icons8.com/color/48/000000/oven.png',
+    'Default':'https://img.icons8.com/color/48/000000/electrical.png'
+};
+
+// Load Data
+async function loadData(){
+    const logs = await axios.get(`../backend/api/usage.php?action=list&period=${period}`);
+    const labels = [];
+    const data = [];
+    const highUsage = [];
+    let totalEnergy = 0;
+
+    logs.data.forEach(log=>{
+        labels.push(log.appliance_name);
+        data.push(log.energy_consumed);
+        totalEnergy += log.energy_consumed;
+        if(log.energy_consumed>5){
+            const icon = applianceIcons[log.category] || applianceIcons['Default'];
+            highUsage.push(`<li class="flex items-center gap-2"><img src="${icon}" class="w-6 h-6"/> ${log.appliance_name}: ${log.energy_consumed} kWh</li>`);
+        }
+    });
+
+    document.getElementById('totalEnergy').innerText = totalEnergy.toFixed(2) + " kWh";
+    document.getElementById('highUsageList').innerHTML = highUsage.length>0 
+        ? highUsage.join('') 
+        : '<li>No high-usage appliances</li>';
+
+    // Animate High Usage Card
+    const highCard = document.getElementById('highUsageCard');
+    if(highUsage.length>0){
+        highCard.classList.add('scale-105');
+        setTimeout(()=>{ highCard.classList.remove('scale-105'); }, 800);
+    }
+
+    // Chart with trend line
+    const ctx = document.getElementById('energyChart').getContext('2d');
+    if(window.energyChartInstance) window.energyChartInstance.destroy();
+
+    const monthlyData = logs.data.map(log => log.monthly_energy || 0);
+
+    window.energyChartInstance = new Chart(ctx,{
+        type:'bar',
+        data:{
+            labels:labels,
+            datasets:[
+                {
+                    label:'Current Period Energy (kWh)',
+                    data:data,
+                    backgroundColor: labels.map(l => data[labels.indexOf(l)]>5 ? 'rgba(255,99,132,0.7)' : 'rgba(75,192,192,0.7)'),
+                    borderColor: labels.map(l => data[labels.indexOf(l)]>5 ? 'rgba(255,99,132,1)' : 'rgba(75,192,192,1)'),
+                    borderWidth:1
+                },
+                {
+                    label:'Previous Period Trend (kWh)',
+                    type:'line',
+                    data:monthlyData,
+                    borderColor:'rgba(255,206,86,1)',
+                    backgroundColor:'rgba(255,206,86,0.2)',
+                    fill:true,
+                    tension:0.4
+                }
+            ]
+        },
+        options:{
+            responsive:true,
+            plugins:{legend:{display:true}},
+            scales:{
+                y:{beginAtZero:true, title:{display:true, text:'kWh'}},
+                x:{title:{display:true, text:'Appliances'}}
+            }
+        }
+    });
+}
+
+// Initial load
+loadData();
+</script>
+</body>
+</html>
